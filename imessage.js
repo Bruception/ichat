@@ -1,17 +1,22 @@
 import sqlite3 from 'sqlite3';
 import { runAppleScript } from 'run-applescript';
 
+function coreDataNsDateToUnixTimestamp(nsDate) {
+    return Math.floor((nsDate / 1_000_000_000) + 978307200) * 1_000;
+}
+
 export class IMessageClient {
     constructor(opts) {
         this.phoneNumber = `+1${opts.phoneNumber}`;
         this.chatDbPath = opts.chatDbPath;
+        this.maxMessages = opts.maxMessages || 25;
         this.db = new sqlite3.Database(this.chatDbPath, sqlite3.OPEN_READONLY);
     }
 
     async getMessages() {
         const query = `SELECT text, date, is_from_me FROM message WHERE handle_id = (
             SELECT ROWID FROM handle WHERE id = '${this.phoneNumber}'
-        ) ORDER BY date DESC LIMIT 15`;
+        ) ORDER BY date DESC LIMIT ${this.maxMessages}`;
 
         return new Promise((resolve, reject) => {
             this.db.all(query, (err, rows) => {
@@ -24,12 +29,10 @@ export class IMessageClient {
 
                     return {
                         text,
-                        date,
+                        date: new Date(coreDataNsDateToUnixTimestamp(date)),
                         isFromMe: is_from_me,
                     };
-                }).sort((a, b) => {
-                    return a.date - b.date;
-                });
+                }).reverse();
 
                 resolve(messages);
             });
@@ -52,5 +55,9 @@ export class IMessageClient {
         }
 
         return false;
+    }
+
+    setMaxMessages(maxMessages) {
+        this.maxMessages = maxMessages;
     }
 }

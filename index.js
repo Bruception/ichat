@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { IMessageClient } from './imessage.js';
 import { profanities } from './profanities.js';
 import { Configuration, OpenAIApi } from 'openai';
+import * as readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 
 const client = new IMessageClient({
     phoneNumber: process.env.TARGET_PHONE_NUMBER,
@@ -16,53 +18,118 @@ const configuration = new Configuration({
 const openai = new OpenAIApi(configuration);
 
 async function main() {
+    const rl = readline.createInterface({ input, output });
+
+    let promptExtension = '';
+    let messagePreview = null;
+
+    while (true) {
+        const command = await rl.question('> ');
+
+        if (command === 'exit') {
+            break;
+        } else if (command === 'prompt') {
+            const prompt = await getPrompt(promptExtension);
+            console.log(prompt);
+        } else if (command.startsWith('set')) {
+            const parameters = command.split(' ');
+
+            if (parameters.length < 3) {
+                console.log('Invalid set command. You can set prm-ext or max-msgs.');
+                continue;
+            }
+
+            const [_, parameter, ...value] = parameters;
+
+            if (parameter === 'prm-ext') {
+                promptExtension = value.join(' ');
+                console.log('Prompt extension set to:', promptExtension);
+            } else if (parameter === 'max-msgs') {
+                const maxMessages = parseInt(value[0], 10);
+                client.setMaxMessages(maxMessages);
+                console.log('Max messages set to:', maxMessages);
+            } else {
+                console.log('Invalid set command');
+            }
+        } else if (command === 'preview') {
+            const prompt = await getPrompt(promptExtension);
+            const reply = await getReply(prompt);
+            messagePreview = reply;
+
+            console.log('Previewing reply:', reply);
+        } else if (command === 'reply') {
+            let sentMessage = null;
+
+            if (messagePreview === null) {
+                const prompt = await getPrompt(promptExtension);
+                sentMessage = await getReplyAndSend(prompt);
+            } else {
+                await sendReply(messagePreview);
+                sentMessage = messagePreview;
+            }
+
+            messagePreview = null;
+            console.log('Sent message:', sentMessage);
+        } else {
+            console.log('Invalid command. Valid commands are: prompt, set, preview, reply, exit');
+        }
+    }
+
+    rl.close();
+    process.exit(0);
+}
+
+async function getPrompt(promptExtension = '') {
     const messages = await client.getMessages();
 
-    const messagesFormattedAsScript = messages.map((message) => {
-        const { text, isFromMe } = message;
-
+    const messagesFormattedAsScript = messages.map(({ text, date, isFromMe }) => {
         const normalizedText = text.replace(/￼/g, '');
         const newText = normalizedText.length === 0 ? '<funny attachment>' : normalizedText;
 
-        const newTextWithProfanitiesReplaced = newText.split(' ').map((word) => {
-            const normalizedWord = word.toLowerCase();
+        const newTextWithProfanitiesReplaced = newText
+            .split(' ')
+            .map(word => (profanities.includes(word.toLowerCase()) ? '*'.repeat(word.length) : word))
+            .join(' ');
 
-            if (profanities.includes(normalizedWord)) {
-                return '*'.repeat(word.length);
-            }
-
-            return word;
-        }).join(' ');
-
-        return `${isFromMe ? 'me' : 'them'}: ${newTextWithProfanitiesReplaced}`;
+        return `\t${isFromMe ? 'me' : 'them'} @ (${date.toISOString()}): ${newTextWithProfanitiesReplaced}`;
     });
 
-    const script = `The following is a conversation with ${process.env.FRIEND_NAME}, a friend of mine. ${messagesFormattedAsScript.join("\n")}
-    Please write a single response, in first person perspective that best continues the conversation.`;
+    const conversationScript = messagesFormattedAsScript.join("\n");
 
-    console.log('Prompt:', script);
+    return `The following is a conversation log with my friend ${process.env.FRIEND_NAME}:
+    \n${conversationScript}
+    \nYou MUST write reply as me, in first person perspective that best continues the conversation. DO NOT INCLUDE any indicators of who sent the message or timestamp. The current timestamp is ${new Date().toISOString()}. If they have not responded in a while, send a bump. ${promptExtension}`;
+}
 
+async function getReply(prompt) {
     const response = await openai.createChatCompletion({
         model: 'gpt-3.5-turbo',
         messages: [
             {
                 role: 'user',
-                content: script,
+                content: prompt,
             },
         ],
         temperature: 0.5,
         max_tokens: 150,
         n: 1,
         stream: false,
-        stop: ['\n', " me:", " them:"],
+        stop: ['\n', '\t', "me:", " them:"],
     });
 
     const { choices: [choice] } = response.data;
 
-    const message = choice.message?.content;
-    client.sendMessage(message);
+    return choice.message?.content;
+}
 
-    console.log('Sent message:', message);
+async function sendReply(message) {
+    await client.sendMessage(message);
+}
+
+async function getReplyAndSend(prompt) {
+    const reply = await getReply(prompt);
+    await sendReply(reply);
+    return reply;
 }
 
 main().catch((error) => {
