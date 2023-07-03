@@ -1,4 +1,4 @@
-# ichat
+# iChat
 
 Automate all of your iMessage messaging endeavors and unlock a world of endless amusement.
 With AI-driven conversations, your messages will be clever, witty, and effortlessly hilarious.
