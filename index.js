@@ -82,7 +82,8 @@ async function main() {
 async function getPrompt(promptExtension = '') {
     const messages = await client.getMessages();
 
-    const messagesFormattedAsScript = messages.map(({ text, date, isFromMe }) => {
+    const filteredMessages = messages.filter(({ text }) => text !== null);
+    const messagesFormattedAsScript = filteredMessages.map(({ text, date, isFromMe }) => {
         const normalizedText = text.replace(/￼/g, '');
         const newText = normalizedText.length === 0 ? '<funny attachment>' : normalizedText;
 
