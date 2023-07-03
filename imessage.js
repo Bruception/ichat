@@ -16,7 +16,7 @@ export class IMessageClient {
     async getMessages() {
         const query = `SELECT text, date, is_from_me FROM message WHERE handle_id = (
             SELECT ROWID FROM handle WHERE id = '${this.phoneNumber}'
-        ) ORDER BY date DESC LIMIT ${this.maxMessages}`;
+        ) AND type = 0 ORDER BY date DESC LIMIT ${this.maxMessages}`;
 
         return new Promise((resolve, reject) => {
             this.db.all(query, (err, rows) => {
