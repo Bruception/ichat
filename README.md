@@ -6,5 +6,5 @@ Say goodbye to dull exchanges and hello to AI powered messaging!
 
 ![example](https://github.com/Bruception/ichat/blob/main/images/example.png)
 
-### CLI Usage Example:
+### CLI Usage Example
 ![cli-example](https://github.com/Bruception/ichat/blob/main/images/cli-example.gif)
