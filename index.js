@@ -7,7 +7,8 @@ import { stdin as input, stdout as output } from 'node:process';
 
 const client = new IMessageClient({
     phoneNumber: process.env.TARGET_PHONE_NUMBER,
-    chatDbPath: process.env.CHAT_DB_PATH
+    chatDbPath: process.env.CHAT_DB_PATH,
+    maxMessages: process.env.MAX_MESSAGES,
 });
 
 const configuration = new Configuration({
@@ -17,10 +18,12 @@ const configuration = new Configuration({
 
 const openai = new OpenAIApi(configuration);
 
+let model = process.env.MODEL || 'gpt-3.5-turbo';
+
 async function main() {
     const rl = readline.createInterface({ input, output });
 
-    let promptExtension = '';
+    let promptExtension = process.env.PROMPT_EXTENSION || '';
     let messagePreview = null;
 
     while (true) {
@@ -35,7 +38,7 @@ async function main() {
             const parameters = command.split(' ');
 
             if (parameters.length < 3) {
-                console.log('Invalid set command. You can set prm-ext or max-msgs.');
+                console.log('Invalid set command. You can set model, prm-ext, or max-msgs.');
                 continue;
             }
 
@@ -48,6 +51,9 @@ async function main() {
                 const maxMessages = parseInt(value[0], 10);
                 client.setMaxMessages(maxMessages);
                 console.log('Max messages set to:', maxMessages);
+            } else if (parameter === 'model') {
+                model = value.join(' ');
+                console.log('Model set to:', model);
             } else {
                 console.log('Invalid set command');
             }
@@ -104,7 +110,7 @@ async function getPrompt(promptExtension = '') {
 
 async function getReply(prompt) {
     const response = await openai.createChatCompletion({
-        model: 'gpt-3.5-turbo',
+        model,
         messages: [
             {
                 role: 'user',
