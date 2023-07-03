@@ -3,14 +3,14 @@ import { runAppleScript } from 'run-applescript';
 
 export class IMessageClient {
     constructor(opts) {
-        this.phoneNumber = opts.phoneNumber;
+        this.phoneNumber = `+1${opts.phoneNumber}`;
         this.chatDbPath = opts.chatDbPath;
         this.db = new sqlite3.Database(this.chatDbPath, sqlite3.OPEN_READONLY);
     }
 
     async getMessages() {
         const query = `SELECT text, date, is_from_me FROM message WHERE handle_id = (
-            SELECT handle_id FROM handle WHERE id = '+1${this.phoneNumber}'
+            SELECT ROWID FROM handle WHERE id = '${this.phoneNumber}'
         ) ORDER BY date DESC LIMIT 15`;
 
         return new Promise((resolve, reject) => {
@@ -40,7 +40,7 @@ export class IMessageClient {
         try {
             const script = `tell application "Messages"
                 set targetService to 1st service whose service type = iMessage
-                set targetBuddy to buddy "+1${this.phoneNumber}" of targetService
+                set targetBuddy to buddy "${this.phoneNumber}" of targetService
                 send "${message}" to targetBuddy
             end tell`;
 
